@@ -98,5 +98,13 @@ describe("MyToken", function () {
         tokenId2,
       ]);
     });
+
+    it("should not fail after a burn", async function () {
+      const tokenId = await mintAndGetTokenId("ipfs://foobar");
+
+      await token.burn(tokenId);
+
+      expect(await token.tokensOfOwner(owner.address)).to.deep.equals([]);
+    });
   });
 });

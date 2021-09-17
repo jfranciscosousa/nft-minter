@@ -1,25 +1,19 @@
 <script lang="ts">
   import { NFTStorage } from "nft.storage";
   import { onMount } from "svelte";
-  import detectEthereumProvider from "@metamask/detect-provider";
-  import { Contract, providers } from "ethers";
+  import TokenContract, {
+    buildTokenContract,
+  } from "./blockchain/tokenContract";
+  import initializeBlockchain from "./blockchain/initializeBlockchain";
 
-  let loadingWeb3Provider = true;
-  let currentAccount;
-  let TokenContract: Contract;
-  let web3Provider;
+  let TokenContract: TokenContract;
   let storageClient = new NFTStorage({
     token: import.meta.env.VITE_NFT_STORAGE_KEY as string,
   });
   let name: string;
   let description: string;
   let image: FileList;
-  $: {
-    if (TokenContract)
-      TokenContract.queryFilter(
-        TokenContract.filters.Transfer(null, currentAccount)
-      ).then(console.log);
-  }
+  let alt: string;
 
   async function handleSubmit(event) {
     event.preventDefault();
@@ -28,47 +22,71 @@
       name,
       description,
       image: image[0],
+      alt,
     });
 
-    await TokenContract.mint(account, metadata.url);
+    await TokenContract.mint(metadata.url);
+  }
+
+  function ipfsToHttp(ipfsUrl: string) {
+    const [_1, _2, ...rest] = ipfsUrl.split("/");
+
+    return `https://ipfs.io/ipfs/${rest.join("/")}`;
   }
 
   onMount(async () => {
-    web3Provider = await detectEthereumProvider();
-    await window.ethereum.request({ method: "eth_requestAccounts" });
-    currentAccount = (
-      await window.ethereum.request({ method: "eth_accounts" })
-    )[0];
-    const provider = new providers.Web3Provider(web3Provider);
-    TokenContract = new Contract(
-      import.meta.env.VITE_CONTRACT_ADDRESS as string,
-      [
-        "function mint(address to, string memory ipfsUrl) public payable returns (uint256)",
-        "event Transfer(address indexed from, address indexed to, uint256 indexed tokenId)",
-      ],
-      provider.getSigner()
-    );
-    loadingWeb3Provider = false;
+    const { provider, currentAccount } = await initializeBlockchain();
+
+    TokenContract = buildTokenContract(provider, currentAccount);
   });
 </script>
 
-<main>
-  <form on:submit={handleSubmit}>
-    <input name="name" placeholder="Name" bind:value={name} />
-    <input
-      name="description"
-      placeholder="Description"
-      bind:value={description}
-    />
-    <input name="image" type="file" bind:files={image} />
-    <button type="submit">Submit</button>
-  </form>
-</main>
+{#if !TokenContract}
+  <p>I am loading</p>
+{:else}
+  <main>
+    <form class="flex-col" style="width: 100%;" on:submit={handleSubmit}>
+      <input name="name" placeholder="Name" bind:value={name} />
+      <input
+        name="description"
+        placeholder="Description"
+        bind:value={description}
+      />
+      <input name="image" type="file" bind:files={image} />
+      <button type="submit">Submit</button>
+      <input name="alt" bind:value={alt} />
+    </form>
+
+    <div class="flex-col">
+      {#await TokenContract.tokensOfOwner() then tokens}
+        {#each tokens as tokenId}
+          {#await TokenContract.tokenURI(tokenId) then url}
+            <a href={url}>My tokenId: {tokenId}</a>
+
+            <button on:click={() => TokenContract.burn(tokenId)} type="button"
+              >BURN TOKEN</button
+            >
+
+            {#await fetch(ipfsToHttp(url)) then response}
+              {#await response.json() then metadata}
+                <img src={ipfsToHttp(metadata.image)} alt={metadata.alt} />
+              {/await}
+            {/await}
+          {/await}
+        {/each}
+      {/await}
+    </div>
+  </main>{/if}
 
 <style>
   :root {
     font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen,
       Ubuntu, Cantarell, "Open Sans", "Helvetica Neue", sans-serif;
+  }
+
+  .flex-col {
+    display: flex;
+    flex-direction: column;
   }
 
   main {

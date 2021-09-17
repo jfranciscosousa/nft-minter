@@ -14,11 +14,7 @@ contract Token is ERC721URIStorage {
         ERC721(name, symbol)
     {}
 
-    function mint(address to, string memory ipfsUrl)
-        public
-        payable
-        returns (uint256)
-    {
+    function mint(address to, string memory ipfsUrl) public returns (uint256) {
         require(
             ipfsUrl.toSlice().startsWith("ipfs://".toSlice()),
             "not valid ipfs link"
@@ -45,12 +41,16 @@ contract Token is ERC721URIStorage {
         return _exists(tokenId);
     }
 
-    function tokensOfOwner(address _owner)
+    // NEVER CALL FROM ANOTHER CONTRACT
+    // OR YOU WILL RUN OUT OF GAS
+    //
+    // ONLY FOR WEB3 USAGE
+    function tokensOfOwner(address owner)
         external
         view
         returns (uint256[] memory ownerTokens)
     {
-        uint256 tokenCount = balanceOf(_owner);
+        uint256 tokenCount = balanceOf(owner);
 
         if (tokenCount == 0) {
             return new uint256[](0);
@@ -62,7 +62,7 @@ contract Token is ERC721URIStorage {
             uint256 tokenId;
 
             for (tokenId = 1; tokenId <= totalTokens; tokenId++) {
-                if (ownerOf(tokenId) == _owner) {
+                if (exists(tokenId) && ownerOf(tokenId) == owner) {
                     result[resultIndex] = tokenId;
                     resultIndex++;
                 }

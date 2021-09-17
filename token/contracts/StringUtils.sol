@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: MIT
+
 /*
  * Extracted only the bits that are needed.
  *
